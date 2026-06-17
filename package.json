@@ -4,6 +4,10 @@
   "private": true,
   "scripts": {
     "build:css": "npx --yes tailwindcss@3 -c tailwind.config.js -i assets/tailwind.input.css -o assets/styles.css --minify",
-    "watch:css": "npx --yes tailwindcss@3 -c tailwind.config.js -i assets/tailwind.input.css -o assets/styles.css --watch"
+    "watch:css": "npx --yes tailwindcss@3 -c tailwind.config.js -i assets/tailwind.input.css -o assets/styles.css --watch",
+    "start": "serve -l ${PORT:-3000} ."
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
   }
 }
