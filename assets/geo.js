@@ -2,47 +2,56 @@
  * სანტექ-1972 — geo redirect
  * Georgian IP → "/" (ka),  foreign IP → "/en/" (en).
  * Manual KA/EN choice (stored in localStorage) always wins.
- * Auto-redirect happens at most once per browser session.
+ *
+ * NOTE: storage key is "santec_lang" (NOT the old "lang") so any stale
+ * value written by the previous i18n toggle is ignored and detection
+ * runs fresh for everyone.
  */
 (function () {
   'use strict';
 
+  var KEY = 'santec_lang';
   var path = location.pathname;
   var currentLang = /^\/en(\/|$)/.test(path) ? 'en' : 'ka';
+
+  function go(lang) {
+    if (lang !== currentLang) location.replace(lang === 'en' ? '/en/' : '/');
+  }
 
   // Lock manual choice: clicking a KA/EN link records the language.
   function bindToggles() {
     var links = document.querySelectorAll('[data-setlang]');
     for (var i = 0; i < links.length; i++) {
       links[i].addEventListener('click', function (e) {
-        try { localStorage.setItem('lang', e.currentTarget.getAttribute('data-setlang')); } catch (err) {}
+        try { localStorage.setItem(KEY, e.currentTarget.getAttribute('data-setlang')); } catch (err) {}
       });
     }
   }
   if (document.readyState !== 'loading') bindToggles();
   else document.addEventListener('DOMContentLoaded', bindToggles);
 
-  // Respect a manual choice — never auto-redirect once the user picked.
+  // Manual choice wins — honor it and send to the chosen page if needed.
   var saved = null;
-  try { saved = localStorage.getItem('lang'); } catch (err) {}
-  if (saved) return;
+  try { saved = localStorage.getItem(KEY); } catch (err) {}
+  if (saved === 'ka' || saved === 'en') { go(saved); return; }
 
-  // Only auto-redirect once per session (avoids loops / repeated jumps).
-  try { if (sessionStorage.getItem('geo_done')) return; } catch (err) {}
+  // No manual choice → detect country and redirect to the right language.
+  function decide(cc) {
+    var desired = (cc && String(cc).toUpperCase() !== 'GE') ? 'en' : 'ka';
+    go(desired);
+  }
 
-  var controller = new AbortController();
-  var timeout = setTimeout(function () { controller.abort(); }, 2500); // fail fast → stay on current page
+  var done = false;
+  function finish(cc) { if (done) return; done = true; decide(cc); }
 
-  fetch('https://ipwho.is/?fields=country_code', { signal: controller.signal })
+  // Primary: ipwho.is — fallback: api.country.is (both send CORS *).
+  fetch('https://ipwho.is/?fields=country_code')
     .then(function (r) { return r.json(); })
-    .then(function (d) {
-      clearTimeout(timeout);
-      try { sessionStorage.setItem('geo_done', '1'); } catch (err) {}
-      try { if (localStorage.getItem('lang')) return; } catch (err) {}
-      var cc = (d && d.country_code) || '';
-      var desired = (cc && cc !== 'GE') ? 'en' : 'ka';
-      if (desired === currentLang) return;
-      location.replace(desired === 'en' ? '/en/' : '/');
-    })
-    .catch(function () { clearTimeout(timeout); /* network/timeout/blocked → stay */ });
+    .then(function (d) { finish(d && d.country_code); })
+    .catch(function () {
+      fetch('https://api.country.is/')
+        .then(function (r) { return r.json(); })
+        .then(function (d) { finish(d && d.country); })
+        .catch(function () { /* network/blocked → stay on current page */ });
+    });
 })();
