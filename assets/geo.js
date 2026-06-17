@@ -44,12 +44,13 @@
   var done = false;
   function finish(cc) { if (done) return; done = true; decide(cc); }
 
-  // Primary: ipwho.is — fallback: api.country.is (both send CORS *).
-  fetch('https://ipwho.is/?fields=country_code')
+  // Primary: api.country.is — fallback: get.geojs.io (both send CORS *
+  // and are free with no key). ipwho.is was dropped — it now 403/405s.
+  fetch('https://api.country.is/')
     .then(function (r) { return r.json(); })
-    .then(function (d) { finish(d && d.country_code); })
+    .then(function (d) { finish(d && d.country); })
     .catch(function () {
-      fetch('https://api.country.is/')
+      fetch('https://get.geojs.io/v1/ip/country.json')
         .then(function (r) { return r.json(); })
         .then(function (d) { finish(d && d.country); })
         .catch(function () { /* network/blocked → stay on current page */ });
